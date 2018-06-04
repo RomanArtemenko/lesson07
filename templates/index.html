@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+{% block title %}Advertisements list{% endblock %}
+{% block body %}
+
+  <br>
+    <span 
+      ><a class="btn btn-warning" href="/add" role="button">New Ad</a>
+    </span>
+  <p>
+
+  <table class="table table-striped">
+    <thead>
+      <tr>
+        <th scope="col">ID</th>
+        <th scope="col">Ad header</th>
+        <th scope="col">User</th>
+        <th scope="col">Time</th>
+      </tr>
+    </thead>
+    <tbody>
+
+      {% if ad_list %}
+        {% for ad in ad_list %}
+
+          <tr>
+            <th scope="row">{{ ad['id'] }}</th>
+            <td><a href="/ad/{{ ad['id'] }}" >{{ ad['header'] }}</a></td>
+            <td>{{ ad['user'] }}</td>
+            <td>{{ ad['date'] }}</td>
+          </tr>
+
+        {% endfor %}
+      {% endif %}
+
+    </tbody>
+  </table>
+
+  {% if not ad_list %}
+
+    <div class="alert alert-dark" role="alert">
+      <center>No ads yet!</center>
+    </div>
+
+  {% endif %}
+
+{% endblock %}
