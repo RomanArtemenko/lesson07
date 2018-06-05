@@ -20,11 +20,6 @@ def base36_encode(number):
         base36.append('0123456789abcdefghijklmnopqrstuvwxyz'[i])
     return ''.join(reversed(base36))
 
-
-# def is_valid_url(url):
-#     parts = urlparse(url)
-#     return parts.scheme in ('http', 'https')
-
 def is_valid_user(user):
     return bool(user) and len(user) <= 30
 
@@ -33,7 +28,6 @@ def is_valid_header(header):
 
 def is_valid_comment(comment):
     return bool(comment) and len(comment) <= 255
-
 
 def get_hostname(url):
     return urlparse(url).netloc
@@ -50,14 +44,15 @@ class Ad(object):
 
         self.url_map = Map([
             Rule('/', endpoint='board'),
-            Rule('/add', endpoint='add_advertisement'),
             Rule('/ad/<int:id>', endpoint='advertisement'),
             Rule('/ad/<int:id>/add_comment', endpoint='add_comment'),
+            Rule('/add', endpoint='add_advertisement'),
         ])
 
     def on_board(self, request):
         ads = self.redis.keys('ad:*')
         ad_list = []
+
         for ad in ads:
             ad_id = ad.split(":")[1]
             ad_header = self.redis.get(ad)
@@ -65,6 +60,7 @@ class Ad(object):
             ad_date = self.redis.get('date:%s' % ad)
              
             ad_list.append({'id': ad_id, 'header': ad_header, 'user': ad_user, 'date': ad_date })
+
         return self.render_template('index.html', ad_list=ad_list)
 
     def on_add_advertisement(self, request):
@@ -81,18 +77,55 @@ class Ad(object):
         return self.render_template('add_advertisement.html', error=error)
 
     def on_advertisement(self, request, id):
-        pass
+        ad = 'ad:%s' % id
+        ad_header = self.redis.get(ad)
+        ad_user = self.redis.get('user:%s' % ad)
+        ad_date = self.redis.get('date:%s' % ad)
+        
+        ad_obj = {'id': id, 'header': ad_header, 'user': ad_user, 'date': ad_date}
 
-    def on_add_comment(self, request):
-        pass
+        ad_comments = self.redis.keys('comment:*:%s' % ad)        
+        comment_list = []
+
+        for comment in ad_comments:
+            com_id = comment.split(':')[1]
+            com_text = self.redis.get('comment:%s:%s' % (com_id, ad))
+            com_user = self.redis.get('user:comment:%s:%s' % (com_id, ad))
+            com_date = self.redis.get('date:comment:%s:%s' % (com_id, ad))
+
+            comment_list.append({'id': com_id, 'text': com_text, 'user': com_user, 'date': com_date })
+
+        return self.render_template('advertisement.html', ad_obj=ad_obj, comment_list=comment_list)
+
+    def on_add_comment(self, request, id):
+        error = None
+        if request.method == 'POST':
+            user = request.form['user']
+            text = request.form['text']
+            
+            if not(is_valid_user(user) and is_valid_comment(text)):
+                error = "Please enter a valid data!"
+            else: 
+                self._insert_comment(id, user, text)            
+                return redirect('/ad/%s' % id)            
+        return self.render_template('add_comment.html', error=error)
         
     def _insert_advertisement(self, user, header):
         id = self.redis.incr('ad_counter')
-        date = datetime.strftime(datetime.now(), "%Y-%m-%d %H:%M")
 
         self.redis.set('ad:%s' % id ,header)
         self.redis.set('user:ad:%s' % id, user)
-        self.redis.set('date:ad:%s' % id, date)
+        self.redis.set('date:ad:%s' % id, self._time_stamp())
+
+    def _insert_comment(self, ad_id, user, text):
+        id = self.redis.incr('comment_counter')
+        print('ID : ' + str(id))
+        self.redis.set('comment:%s:ad:%s' % (id, ad_id), text)
+        self.redis.set('user:comment:%s:ad:%s' % (id, ad_id), user)
+        self.redis.set('date:comment:%s:ad:%s' % (id, ad_id), self._time_stamp())
+    
+    def _time_stamp(self):
+        return  datetime.strftime(datetime.now(), "%Y-%m-%d %H:%M")
 
     def error_404(self):
         response = self.render_template('404.html')
